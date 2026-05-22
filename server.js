@@ -56,9 +56,10 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', message: 'Server running' });
 });
 
-// Error handler
 app.use((err, req, res, next) => {
-    console.error('Error:', err.stack);
+    // Это выведет полную ошибку в логи Railway!
+    console.error('ОШИБКА СЕРВЕРА:', err.stack);
+    
     res.status(500).json({
         success: false,
         message: err.message || 'Внутренняя ошибка сервера'
