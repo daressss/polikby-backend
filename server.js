@@ -16,27 +16,43 @@ const adminRoutes = require('./routes/admin');
 
 const app = express();
 
-// CORS
+// Доверять заголовкам от прокси (Railway)
+app.set('trust proxy', 1);
+
+// CORS - разрешаем запросы с вашего фронтенда
+const allowedOrigins = [
+    'https://polikby.vercel.app',
+    'https://polikby-frontend.vercel.app',
+    'http://localhost:3000'
+];
+
 app.use(cors({
-    origin: [process.env.FRONTEND_URL || 'http://localhost:3000', 'https://*.railway.app'],
+    origin: function(origin, callback) {
+        // Разрешаем запросы без origin (например, от curl) и из разрешенных источников
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie']
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'X-Requested-With']
 }));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Session
+// Session - настройки для продакшена
 app.use(session({
     secret: process.env.SESSION_SECRET || 'secret-key',
     resave: false,
     saveUninitialized: false,
     cookie: {
-        secure: false,
+        secure: true,       // Обязательно true для HTTPS
         httpOnly: true,
-        maxAge: 24 * 60 * 60 * 1000,
-        sameSite: 'lax'
+        maxAge: 24 * 60 * 60 * 1000, // 24 часа
+        sameSite: 'none'    // Разрешить кросс-доменные запросы
     }
 }));
 
@@ -56,10 +72,9 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', message: 'Server running' });
 });
 
+// Error handler
 app.use((err, req, res, next) => {
-    // Это выведет полную ошибку в логи Railway!
-    console.error('ОШИБКА СЕРВЕРА:', err.stack);
-    
+    console.error('Error:', err.stack);
     res.status(500).json({
         success: false,
         message: err.message || 'Внутренняя ошибка сервера'
