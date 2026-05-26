@@ -262,4 +262,20 @@ router.get('/:patientId', requireAuth, async (req, res) => {
     }
 });
 
+// Обновление профиля пациента (адрес, участок)
+router.put('/profile', requireAuth, async (req, res) => {
+    const { address, district_number } = req.body;
+    
+    try {
+        await pool.execute(
+            'UPDATE patients SET address = ?, district_number = ? WHERE user_id = ?',
+            [address || null, district_number || null, req.session.userId]
+        );
+        res.json({ success: true, message: 'Профиль пациента обновлен' });
+    } catch (error) {
+        console.error('Error updating patient profile:', error);
+        res.status(500).json({ success: false, message: 'Ошибка обновления' });
+    }
+});
+
 module.exports = router;
