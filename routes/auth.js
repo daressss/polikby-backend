@@ -1,6 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
 const pool = require('../config/database');
+const { requireAuth } = require('../middleware/auth'); // ← ДОБАВИТЬ ЭТУ СТРОКУ
 
 const router = express.Router();
 
