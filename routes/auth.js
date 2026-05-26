@@ -29,7 +29,7 @@ router.post('/register', async (req, res) => {
             return res.status(400).json({ success: false, message: 'Логин должен быть не менее 3 символов' });
         }
 
-        // Проверка на допустимые символы в логине (только латиница, цифры, подчеркивание)
+        // Проверка на допустимые символы в логине
         if (!/^[a-zA-Z0-9_]+$/.test(username)) {
             connection.release();
             return res.status(400).json({ success: false, message: 'Логин может содержать только латинские буквы, цифры и знак подчеркивания' });
@@ -90,7 +90,7 @@ router.post('/register', async (req, res) => {
 
         const patientId = patientResult.insertId;
 
-        // 3. Добавляем связь в user_patients (ИСПРАВЛЕНО: используем patientId, а не userId)
+        // 3. Добавляем связь в user_patients
         await connection.execute(
             `INSERT INTO user_patients (user_id, patient_id, relationship) VALUES (?, ?, 'self')`,
             [userId, patientId]
@@ -186,6 +186,22 @@ router.get('/me', async (req, res) => {
         res.json({ success: true, user: users[0] });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Ошибка сервера' });
+    }
+});
+
+// Обновление профиля пользователя
+router.put('/users/profile', requireAuth, async (req, res) => {
+    const { email, phone } = req.body;
+    
+    try {
+        await pool.execute(
+            'UPDATE users SET email = ?, phone = ? WHERE id = ?',
+            [email || null, phone || null, req.session.userId]
+        );
+        res.json({ success: true, message: 'Профиль обновлен' });
+    } catch (error) {
+        console.error('Error updating user profile:', error);
+        res.status(500).json({ success: false, message: 'Ошибка обновления' });
     }
 });
 
