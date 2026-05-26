@@ -1,3 +1,10 @@
+const express = require('express');
+const bcrypt = require('bcrypt');
+const pool = require('../config/database');
+
+const router = express.Router();
+
+// Регистрация
 router.post('/register', async (req, res) => {
     console.log('📝 Registration request:', req.body);
 
@@ -70,7 +77,6 @@ router.post('/register', async (req, res) => {
         connection.release();
         console.error('Registration error:', error);
         
-        // Проверяем, не нарушение ли уникальности
         if (error.code === 'ER_DUP_ENTRY') {
             return res.status(400).json({ success: false, message: 'Пользователь с такими данными уже существует' });
         }
@@ -78,3 +84,80 @@ router.post('/register', async (req, res) => {
         res.status(500).json({ success: false, message: 'Ошибка регистрации: ' + error.message });
     }
 });
+
+// Логин
+router.post('/login', async (req, res) => {
+    const { username, password } = req.body;
+
+    try {
+        const [users] = await pool.execute(
+            'SELECT * FROM users WHERE username = ?',
+            [username]
+        );
+
+        if (users.length === 0) {
+            return res.status(401).json({ success: false, message: 'Неверные данные' });
+        }
+
+        const user = users[0];
+        const validPassword = await bcrypt.compare(password, user.password_hash);
+
+        if (!validPassword) {
+            return res.status(401).json({ success: false, message: 'Неверные данные' });
+        }
+
+        await pool.execute(
+            'UPDATE users SET last_login = NOW() WHERE id = ?',
+            [user.id]
+        );
+
+        req.session.userId = user.id;
+        req.session.username = user.username;
+        req.session.userRole = user.role;
+
+        res.json({
+            success: true,
+            user: {
+                id: user.id,
+                username: user.username,
+                email: user.email,
+                role: user.role
+            }
+        });
+    } catch (error) {
+        console.error('Login error:', error);
+        res.status(500).json({ success: false, message: 'Ошибка входа' });
+    }
+});
+
+// Логаут
+router.post('/logout', (req, res) => {
+    req.session.destroy(() => {
+        res.json({ success: true, message: 'Выход выполнен' });
+    });
+});
+
+// Проверка сессии
+router.get('/me', async (req, res) => {
+    if (!req.session.userId) {
+        return res.status(401).json({ success: false, message: 'Не авторизован' });
+    }
+
+    try {
+        const [users] = await pool.execute(
+            'SELECT id, username, email, phone, role, created_at, last_login FROM users WHERE id = ?',
+            [req.session.userId]
+        );
+
+        if (users.length === 0) {
+            req.session.destroy();
+            return res.status(401).json({ success: false, message: 'Пользователь не найден' });
+        }
+
+        res.json({ success: true, user: users[0] });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Ошибка сервера' });
+    }
+});
+
+module.exports = router;
