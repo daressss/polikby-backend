@@ -23,6 +23,7 @@ app.set('trust proxy', 1);
 const allowedOrigins = [
     'https://polikby.vercel.app',
     'https://polikby-frontend.vercel.app',
+    'https://polikby-git-main-daressss1.vercel.app',
     'http://localhost:3000'
 ];
 
@@ -32,6 +33,7 @@ app.use(cors({
         if (!origin || allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
+            console.log('Blocked origin:', origin);
             callback(new Error('Not allowed by CORS'));
         }
     },
@@ -43,16 +45,17 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Session - настройки для продакшена
+// Session - настройки для продакшена (исправлено для мобильных устройств)
 app.use(session({
     secret: process.env.SESSION_SECRET || 'secret-key',
     resave: false,
     saveUninitialized: false,
     cookie: {
-        secure: true,       // Обязательно true для HTTPS
+        secure: true,           // Обязательно true для HTTPS
         httpOnly: true,
         maxAge: 24 * 60 * 60 * 1000, // 24 часа
-        sameSite: 'none'    // Разрешить кросс-доменные запросы
+        sameSite: 'none',       // Разрешить кросс-доменные запросы
+        domain: '.vercel.app'   // Домен для всех поддоменов vercel.app
     }
 }));
 
