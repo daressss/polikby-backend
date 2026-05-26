@@ -17,7 +17,7 @@ router.get('/available', requireAuth, async (req, res) => {
             `SELECT a.id, a.ticket_number, a.appointment_time, a.status,
                     d.room_number, d.full_name as doctor_name, d.specialization
              FROM appointments a
-             JOIN doctors d ON a.doctor_id = d.id
+                      JOIN doctors d ON a.doctor_id = d.id
              WHERE a.doctor_id = ? AND a.appointment_date = ? AND a.status = 'available'
              ORDER BY a.appointment_time`,
             [doctor_id, date]
@@ -82,20 +82,32 @@ router.get('/my', requireAuth, async (req, res) => {
             );
 
             if (patient.length === 0) {
-                return res.json({ success: true, appointments: [] });
+                return res.json({ success: true, active: [], history: [] });
             }
 
-            const [appointments] = await pool.execute(
+            // Активные записи (забронированные)
+            const [active] = await pool.execute(
                 `SELECT a.*, d.full_name as doctor_name, d.specialization, d.room_number
                  FROM appointments a
                  JOIN doctors d ON a.doctor_id = d.id
-                 WHERE a.patient_id = ?
+                 WHERE a.patient_id = ? AND a.status = 'booked'
+                 ORDER BY a.appointment_date ASC, a.appointment_time ASC`,
+                [patient[0].id]
+            );
+            
+            // История (завершенные и неявки)
+            const [history] = await pool.execute(
+                `SELECT a.*, d.full_name as doctor_name, d.specialization, d.room_number
+                 FROM appointments a
+                 JOIN doctors d ON a.doctor_id = d.id
+                 WHERE a.patient_id = ? AND a.status IN ('completed', 'no_show', 'cancelled')
                  ORDER BY a.appointment_date DESC, a.appointment_time DESC`,
                 [patient[0].id]
             );
-            res.json({ success: true, appointments });
+            
+            res.json({ success: true, active, history });
         } else {
-            res.json({ success: true, appointments: [] });
+            res.json({ success: true, active: [], history: [] });
         }
     } catch (error) {
         console.error('Error fetching appointments:', error);
@@ -131,8 +143,8 @@ router.get('/doctor/schedule', requireAuth, requireRole('doctor'), async (req, r
                     p.address,
                     u.phone
              FROM appointments a
-             LEFT JOIN patients p ON a.patient_id = p.id
-             LEFT JOIN users u ON p.user_id = u.id
+                      LEFT JOIN patients p ON a.patient_id = p.id
+                      LEFT JOIN users u ON p.user_id = u.id
              WHERE a.doctor_id = ? AND a.appointment_date = ?
              ORDER BY a.appointment_time`,
             [doctor[0].id, date]
@@ -168,8 +180,8 @@ router.get('/doctor/patients/upcoming', requireAuth, requireRole('doctor'), asyn
                  a.appointment_time,
                  a.id as appointment_id
              FROM appointments a
-             JOIN patients p ON a.patient_id = p.id
-             LEFT JOIN users u ON p.user_id = u.id
+                      JOIN patients p ON a.patient_id = p.id
+                      LEFT JOIN users u ON p.user_id = u.id
              WHERE a.doctor_id = ?
                AND a.appointment_date >= CURDATE()
                AND a.status = 'booked'
@@ -226,6 +238,8 @@ router.post('/no-show', requireAuth, requireRole('doctor'), async (req, res) => 
 
 // Получить историю приемов доктора
 router.get('/doctor/history', requireAuth, requireRole('doctor'), async (req, res) => {
+    const { limit = 50, offset = 0 } = req.query;
+
     try {
         const [doctor] = await pool.execute(
             'SELECT id FROM doctors WHERE user_id = ?',
@@ -235,6 +249,9 @@ router.get('/doctor/history', requireAuth, requireRole('doctor'), async (req, re
         if (doctor.length === 0) {
             return res.status(404).json({ success: false, message: 'Врач не найден' });
         }
+
+        const limitNum = parseInt(limit);
+        const offsetNum = parseInt(offset);
 
         const [history] = await pool.execute(
             `SELECT a.*, 
@@ -251,7 +268,7 @@ router.get('/doctor/history', requireAuth, requireRole('doctor'), async (req, re
         res.json({ success: true, history });
     } catch (error) {
         console.error('Error loading doctor history:', error);
-        res.status(500).json({ success: false, message: 'Ошибка загрузки истории' });
+        res.status(500).json({ success: false, message: 'Ошибка загрузки истории: ' + error.message });
     }
 });
 
