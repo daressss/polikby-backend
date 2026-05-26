@@ -17,7 +17,7 @@ router.get('/available', requireAuth, async (req, res) => {
             `SELECT a.id, a.ticket_number, a.appointment_time, a.status,
                     d.room_number, d.full_name as doctor_name, d.specialization
              FROM appointments a
-                      JOIN doctors d ON a.doctor_id = d.id
+             JOIN doctors d ON a.doctor_id = d.id
              WHERE a.doctor_id = ? AND a.appointment_date = ? AND a.status = 'available'
              ORDER BY a.appointment_time`,
             [doctor_id, date]
@@ -88,7 +88,7 @@ router.get('/my', requireAuth, async (req, res) => {
             const [appointments] = await pool.execute(
                 `SELECT a.*, d.full_name as doctor_name, d.specialization, d.room_number
                  FROM appointments a
-                          JOIN doctors d ON a.doctor_id = d.id
+                 JOIN doctors d ON a.doctor_id = d.id
                  WHERE a.patient_id = ?
                  ORDER BY a.appointment_date DESC, a.appointment_time DESC`,
                 [patient[0].id]
@@ -106,13 +106,8 @@ router.get('/my', requireAuth, async (req, res) => {
 // ========== МАРШРУТЫ ДЛЯ ДОКТОРА ==========
 
 // Получить расписание доктора на конкретную дату
-// Получить расписание доктора на конкретную дату
 router.get('/doctor/schedule', requireAuth, requireRole('doctor'), async (req, res) => {
     const { date } = req.query;
-
-    console.log('=== DOCTOR SCHEDULE ===');
-    console.log('Date:', date);
-    console.log('User ID:', req.session.userId);
 
     if (!date) {
         return res.status(400).json({ success: false, message: 'Не указана дата' });
@@ -136,8 +131,8 @@ router.get('/doctor/schedule', requireAuth, requireRole('doctor'), async (req, r
                     p.address,
                     u.phone
              FROM appointments a
-                      LEFT JOIN patients p ON a.patient_id = p.id
-                      LEFT JOIN users u ON p.user_id = u.id
+             LEFT JOIN patients p ON a.patient_id = p.id
+             LEFT JOIN users u ON p.user_id = u.id
              WHERE a.doctor_id = ? AND a.appointment_date = ?
              ORDER BY a.appointment_time`,
             [doctor[0].id, date]
@@ -150,7 +145,6 @@ router.get('/doctor/schedule', requireAuth, requireRole('doctor'), async (req, r
     }
 });
 
-// Получить предстоящих пациентов доктора
 // Получить предстоящих пациентов доктора
 router.get('/doctor/patients/upcoming', requireAuth, requireRole('doctor'), async (req, res) => {
     try {
@@ -174,8 +168,8 @@ router.get('/doctor/patients/upcoming', requireAuth, requireRole('doctor'), asyn
                  a.appointment_time,
                  a.id as appointment_id
              FROM appointments a
-                      JOIN patients p ON a.patient_id = p.id
-                      LEFT JOIN users u ON p.user_id = u.id
+             JOIN patients p ON a.patient_id = p.id
+             LEFT JOIN users u ON p.user_id = u.id
              WHERE a.doctor_id = ?
                AND a.appointment_date >= CURDATE()
                AND a.status = 'booked'
@@ -232,29 +226,16 @@ router.post('/no-show', requireAuth, requireRole('doctor'), async (req, res) => 
 
 // Получить историю приемов доктора
 router.get('/doctor/history', requireAuth, requireRole('doctor'), async (req, res) => {
-    const { limit = 50, offset = 0 } = req.query;
-
-    console.log('=== DOCTOR HISTORY ===');
-    console.log('User ID:', req.session.userId);
-    console.log('Limit:', limit, 'Offset:', offset);
-
     try {
         const [doctor] = await pool.execute(
             'SELECT id FROM doctors WHERE user_id = ?',
             [req.session.userId]
         );
 
-        console.log('Doctor found:', doctor);
-
         if (doctor.length === 0) {
             return res.status(404).json({ success: false, message: 'Врач не найден' });
         }
 
-        // Преобразуем в числа
-        const limitNum = parseInt(limit);
-        const offsetNum = parseInt(offset);
-
-        // Простой запрос без LIMIT для начала
         const [history] = await pool.execute(
             `SELECT a.*, 
                     p.id as patient_id,
@@ -267,11 +248,10 @@ router.get('/doctor/history', requireAuth, requireRole('doctor'), async (req, re
             [doctor[0].id]
         );
 
-        console.log('History records found:', history.length);
         res.json({ success: true, history });
     } catch (error) {
         console.error('Error loading doctor history:', error);
-        res.status(500).json({ success: false, message: 'Ошибка загрузки истории: ' + error.message });
+        res.status(500).json({ success: false, message: 'Ошибка загрузки истории' });
     }
 });
 
