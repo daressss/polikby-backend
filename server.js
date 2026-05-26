@@ -19,24 +19,9 @@ const app = express();
 // Доверять заголовкам от прокси (Railway)
 app.set('trust proxy', 1);
 
-// CORS - разрешаем запросы с вашего фронтенда
-const allowedOrigins = [
-    'https://polikby.vercel.app',
-    'https://polikby-frontend.vercel.app',
-    'https://polikby-git-main-daressss1.vercel.app',
-    'http://localhost:3000'
-];
-
+// CORS - временно разрешаем все источники для теста
 app.use(cors({
-    origin: function(origin, callback) {
-        // Разрешаем запросы без origin (например, от curl) и из разрешенных источников
-        if (!origin || allowedOrigins.includes(origin)) {
-            callback(null, true);
-        } else {
-            console.log('Blocked origin:', origin);
-            callback(new Error('Not allowed by CORS'));
-        }
-    },
+    origin: true,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'X-Requested-With']
@@ -45,17 +30,17 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Session - настройки для продакшена (исправлено для мобильных устройств)
+// Session - настройки для продакшена
 app.use(session({
     secret: process.env.SESSION_SECRET || 'secret-key',
     resave: false,
     saveUninitialized: false,
     cookie: {
-        secure: true,           // Обязательно true для HTTPS
+        secure: true,
         httpOnly: true,
-        maxAge: 24 * 60 * 60 * 1000, // 24 часа
-        sameSite: 'none',       // Разрешить кросс-доменные запросы
-        domain: '.vercel.app'   // Домен для всех поддоменов vercel.app
+        maxAge: 24 * 60 * 60 * 1000,
+        sameSite: 'none',
+        domain: '.vercel.app'
     }
 }));
 
