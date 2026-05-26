@@ -6,10 +6,20 @@ const pool = require('../config/database');
 const router = express.Router();
 
 // ============================================
+// ТЕСТОВЫЙ МАРШРУТ ДЛЯ ПРОВЕРКИ
+// ============================================
+
+router.get('/test', (req, res) => {
+    console.log('===== TEST ROUTE WAS CALLED =====');
+    res.json({ success: true, message: 'Admin routes work!' });
+});
+
+// ============================================
 // ДАШБОРД - статистика
 // ============================================
 
 router.get('/dashboard/stats', requireAuth, requireRole('admin'), async (req, res) => {
+    console.log('===== DASHBOARD STATS ROUTE WAS CALLED =====');
     try {
         const [todayAppointments] = await pool.execute(
             `SELECT COUNT(*) as count FROM appointments WHERE appointment_date = CURDATE() AND status = 'booked'`
@@ -81,8 +91,8 @@ router.get('/dashboard/stats', requireAuth, requireRole('admin'), async (req, re
 // УПРАВЛЕНИЕ ВРАЧАМИ
 // ============================================
 
-// Получить всех врачей
 router.get('/doctors', requireAuth, requireRole('admin'), async (req, res) => {
+    console.log('===== DOCTORS ROUTE WAS CALLED =====');
     try {
         const [doctors] = await pool.execute(
             `SELECT d.*, u.username, u.email, u.phone, u.last_login,
@@ -98,194 +108,25 @@ router.get('/doctors', requireAuth, requireRole('admin'), async (req, res) => {
     }
 });
 
-// Добавить врача
-router.post('/doctors', requireAuth, requireRole('admin'), async (req, res) => {
-    const connection = await pool.getConnection();
-    
-    try {
-        const { full_name, specialization, room_number, district_number, username, password, email, phone } = req.body;
-        
-        if (!full_name || !specialization || !room_number || !username || !password) {
-            connection.release();
-            return res.status(400).json({ success: false, message: 'Заполните все обязательные поля' });
-        }
-        
-        await connection.beginTransaction();
-        
-        // Проверка существования пользователя
-        const [existing] = await connection.execute(
-            'SELECT id FROM users WHERE username = ?',
-            [username]
-        );
-        
-        if (existing.length > 0) {
-            await connection.rollback();
-            connection.release();
-            return res.status(400).json({ success: false, message: 'Пользователь с таким логином уже существует' });
-        }
-        
-        // Создаем пользователя
-        const passwordHash = await bcrypt.hash(password, 10);
-        const [userResult] = await connection.execute(
-            'INSERT INTO users (username, password_hash, email, phone, role) VALUES (?, ?, ?, ?, ?)',
-            [username, passwordHash, email || null, phone || null, 'doctor']
-        );
-        
-        const userId = userResult.insertId;
-        
-        // Создаем запись врача
-        const [doctorResult] = await connection.execute(
-            `INSERT INTO doctors (full_name, specialization, room_number, district_number, user_id) 
-             VALUES (?, ?, ?, ?, ?)`,
-            [full_name, specialization, room_number, district_number || null, userId]
-        );
-        
-        await connection.commit();
-        connection.release();
-        
-        res.json({ success: true, message: 'Врач успешно добавлен', doctor_id: doctorResult.insertId });
-        
-    } catch (error) {
-        await connection.rollback();
-        connection.release();
-        console.error('Error adding doctor:', error);
-        res.status(500).json({ success: false, message: 'Ошибка добавления врача' });
-    }
-});
-
-// Обновить врача
-router.put('/doctors/:id', requireAuth, requireRole('admin'), async (req, res) => {
-    const { id } = req.params;
-    const { full_name, specialization, room_number, district_number, email, phone } = req.body;
-    
-    try {
-        await pool.execute(
-            `UPDATE doctors SET full_name = ?, specialization = ?, room_number = ?, district_number = ? WHERE id = ?`,
-            [full_name, specialization, room_number, district_number || null, id]
-        );
-        
-        const [doctor] = await pool.execute('SELECT user_id FROM doctors WHERE id = ?', [id]);
-        if (doctor[0]?.user_id) {
-            await pool.execute(
-                'UPDATE users SET email = ?, phone = ? WHERE id = ?',
-                [email || null, phone || null, doctor[0].user_id]
-            );
-        }
-        
-        res.json({ success: true, message: 'Информация обновлена' });
-    } catch (error) {
-        console.error('Error updating doctor:', error);
-        res.status(500).json({ success: false, message: 'Ошибка обновления' });
-    }
-});
-
-// Удалить врача
-router.delete('/doctors/:id', requireAuth, requireRole('admin'), async (req, res) => {
-    const { id } = req.params;
-    
-    try {
-        const [doctor] = await pool.execute('SELECT user_id FROM doctors WHERE id = ?', [id]);
-        await pool.execute('DELETE FROM doctors WHERE id = ?', [id]);
-        if (doctor[0]?.user_id) {
-            await pool.execute('DELETE FROM users WHERE id = ?', [doctor[0].user_id]);
-        }
-        
-        res.json({ success: true, message: 'Врач удален' });
-    } catch (error) {
-        console.error('Error deleting doctor:', error);
-        res.status(500).json({ success: false, message: 'Ошибка удаления' });
-    }
-});
-
 // ============================================
-// УПРАВЛЕНИЕ РАСПИСАНИЕМ
+// УПРАВЛЕНИЕ РАСПИСАНИЕМ (упрощенная версия)
 // ============================================
 
-// Получить все расписания
 router.get('/schedules', requireAuth, requireRole('admin'), async (req, res) => {
-    const { doctor_id, start_date, end_date } = req.query;
-    
+    console.log('===== SCHEDULES ROUTE WAS CALLED =====');
     try {
-        let query = `
-            SELECT s.*, d.full_name as doctor_name, d.specialization,
-                   (SELECT COUNT(*) FROM appointments a WHERE a.schedule_id = s.id) as total_slots,
-                   (SELECT COUNT(*) FROM appointments a WHERE a.schedule_id = s.id AND a.status = 'booked') as booked_slots
+        const [schedules] = await pool.execute(`
+            SELECT s.*, d.full_name as doctor_name, d.specialization
             FROM schedules s
             JOIN doctors d ON s.doctor_id = d.id
-            WHERE 1=1
-        `;
-        let params = [];
-        
-        if (doctor_id) {
-            query += ' AND s.doctor_id = ?';
-            params.push(doctor_id);
-        }
-        
-        if (start_date) {
-            query += ' AND s.work_date >= ?';
-            params.push(start_date);
-        }
-        
-        if (end_date) {
-            query += ' AND s.work_date <= ?';
-            params.push(end_date);
-        }
-        
-        query += ' ORDER BY s.work_date DESC, s.start_time';
-        
-        const [schedules] = await pool.execute(query, params);
+            ORDER BY s.work_date DESC
+            LIMIT 50
+        `);
+        console.log(`Found ${schedules.length} schedules`);
         res.json({ success: true, schedules });
     } catch (error) {
         console.error('Error fetching schedules:', error);
-        res.status(500).json({ success: false, message: 'Ошибка загрузки расписаний' });
-    }
-});
-
-// Создать расписание
-router.post('/schedules', requireAuth, requireRole('admin'), async (req, res) => {
-    const { doctor_id, work_date, start_time, end_time } = req.body;
-    
-    if (!doctor_id || !work_date || !start_time || !end_time) {
-        return res.status(400).json({ success: false, message: 'Заполните все поля' });
-    }
-    
-    try {
-        const [existing] = await pool.execute(
-            'SELECT id FROM schedules WHERE doctor_id = ? AND work_date = ?',
-            [doctor_id, work_date]
-        );
-        
-        if (existing.length > 0) {
-            return res.status(400).json({ success: false, message: 'Расписание на эту дату уже существует' });
-        }
-        
-        const [result] = await pool.execute(
-            `INSERT INTO schedules (doctor_id, work_date, start_time, end_time, is_available) 
-             VALUES (?, ?, ?, ?, 1)`,
-            [doctor_id, work_date, start_time, end_time]
-        );
-        
-        await pool.execute('CALL generate_appointments(?)', [result.insertId]);
-        
-        res.json({ success: true, message: 'Расписание создано', schedule_id: result.insertId });
-    } catch (error) {
-        console.error('Error creating schedule:', error);
-        res.status(500).json({ success: false, message: 'Ошибка создания расписания' });
-    }
-});
-
-// Удалить расписание
-router.delete('/schedules/:id', requireAuth, requireRole('admin'), async (req, res) => {
-    const { id } = req.params;
-    
-    try {
-        await pool.execute('DELETE FROM appointments WHERE schedule_id = ?', [id]);
-        await pool.execute('DELETE FROM schedules WHERE id = ?', [id]);
-        
-        res.json({ success: true, message: 'Расписание удалено' });
-    } catch (error) {
-        console.error('Error deleting schedule:', error);
-        res.status(500).json({ success: false, message: 'Ошибка удаления' });
+        res.status(500).json({ success: false, message: error.message });
     }
 });
 
@@ -293,8 +134,8 @@ router.delete('/schedules/:id', requireAuth, requireRole('admin'), async (req, r
 // УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯМИ
 // ============================================
 
-// Получить всех пользователей
 router.get('/users', requireAuth, requireRole('admin'), async (req, res) => {
+    console.log('===== USERS ROUTE WAS CALLED =====');
     try {
         const [users] = await pool.execute(
             `SELECT u.*, 
@@ -315,6 +156,7 @@ router.get('/users', requireAuth, requireRole('admin'), async (req, res) => {
 
 // Сброс пароля пользователя
 router.post('/users/:id/reset-password', requireAuth, requireRole('admin'), async (req, res) => {
+    console.log('===== RESET PASSWORD ROUTE WAS CALLED =====');
     const { id } = req.params;
     const newPassword = Math.random().toString(36).slice(-8);
     
@@ -331,6 +173,7 @@ router.post('/users/:id/reset-password', requireAuth, requireRole('admin'), asyn
 
 // Смена роли пользователя
 router.put('/users/:id/role', requireAuth, requireRole('admin'), async (req, res) => {
+    console.log('===== CHANGE ROLE ROUTE WAS CALLED =====');
     const { id } = req.params;
     const { role } = req.body;
     
@@ -352,6 +195,7 @@ router.put('/users/:id/role', requireAuth, requireRole('admin'), async (req, res
 // ============================================
 
 router.get('/reports/appointments', requireAuth, requireRole('admin'), async (req, res) => {
+    console.log('===== REPORTS ROUTE WAS CALLED =====');
     const { start_date, end_date, doctor_id } = req.query;
     
     try {
