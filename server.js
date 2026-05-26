@@ -19,9 +19,9 @@ const app = express();
 // Доверять заголовкам от прокси (Railway)
 app.set('trust proxy', 1);
 
-// CORS - временно разрешаем все источники для теста
+// CORS - разрешаем запросы с фронтенда
 app.use(cors({
-    origin: true,
+    origin: 'https://polikby.vercel.app',
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'X-Requested-With']
@@ -32,15 +32,14 @@ app.use(express.urlencoded({ extended: true }));
 
 // Session - настройки для продакшена
 app.use(session({
-    secret: process.env.SESSION_SECRET || 'secret-key',
+    secret: process.env.SESSION_SECRET || 'super_secret_key_for_clinic_app_2024',
     resave: false,
     saveUninitialized: false,
     cookie: {
         secure: true,
         httpOnly: true,
         maxAge: 24 * 60 * 60 * 1000,
-        sameSite: 'none',
-        domain: '.vercel.app'
+        sameSite: 'none'
     }
 }));
 
