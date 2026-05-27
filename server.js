@@ -16,10 +16,8 @@ const adminRoutes = require('./routes/admin');
 
 const app = express();
 
-// Доверять заголовкам от прокси (Railway)
 app.set('trust proxy', 1);
 
-// CORS - разрешаем запросы с фронтенда (через прокси)
 app.use(cors({
     origin: 'https://polikby.vercel.app',
     credentials: true,
@@ -30,7 +28,6 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Session - настройки для продакшена
 app.use(session({
     secret: process.env.SESSION_SECRET || 'super_secret_key_for_clinic_app_2024',
     resave: false,
@@ -39,13 +36,12 @@ app.use(session({
         secure: true,
         httpOnly: true,
         maxAge: 24 * 60 * 60 * 1000,
-        sameSite: 'lax'  // 'lax' для прокси, так как запросы с того же домена
+        sameSite: 'lax'
     }
 }));
 
 app.use(getUserInfo);
 
-// Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/doctors', doctorRoutes);
 app.use('/api/appointments', appointmentRoutes);
@@ -54,12 +50,10 @@ app.use('/api/schedules', scheduleRoutes);
 app.use('/api/medical-history', medicalHistoryRoutes);
 app.use('/api/admin', adminRoutes);
 
-// Health check
 app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', message: 'Server running' });
 });
 
-// Error handler
 app.use((err, req, res, next) => {
     console.error('Error:', err.stack);
     res.status(500).json({
