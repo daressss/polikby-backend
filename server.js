@@ -20,9 +20,7 @@ app.set('trust proxy', 1);
 
 app.use(cors({
     origin: 'https://polikby.vercel.app',
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'X-Requested-With']
+    credentials: true
 }));
 
 app.use(express.json());
@@ -36,7 +34,8 @@ app.use(session({
         secure: true,
         httpOnly: true,
         maxAge: 24 * 60 * 60 * 1000,
-        sameSite: 'none'
+                sameSite: 'lax'   // ← ИЗМЕНИТЕ ЗДЕСЬ
+
     }
 }));
 
