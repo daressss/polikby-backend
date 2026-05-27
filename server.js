@@ -19,7 +19,7 @@ const app = express();
 // Доверять заголовкам от прокси (Railway)
 app.set('trust proxy', 1);
 
-// CORS - разрешаем запросы с фронтенда
+// CORS - разрешаем запросы с фронтенда (через прокси)
 app.use(cors({
     origin: 'https://polikby.vercel.app',
     credentials: true,
@@ -39,7 +39,7 @@ app.use(session({
         secure: true,
         httpOnly: true,
         maxAge: 24 * 60 * 60 * 1000,
-        sameSite: 'none'
+        sameSite: 'lax'  // 'lax' для прокси, так как запросы с того же домена
     }
 }));
 
